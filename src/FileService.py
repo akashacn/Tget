@@ -7,23 +7,25 @@ Created on 2013-5-1
 from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from SocketServer import ThreadingMixIn
+import time
+import ManageService
+from ManageService import *
+from threading import Thread
 
-class FileService(ThreadingMixIn, HTTPServer):
-    def __init__(self, port):
-        HTTPServer.__init__(self, ('', int(port)), FileServiceRequestHandler)
-        self.run()
+PORT = 8765
+
+class FileService(ThreadingMixIn, HTTPServer, Thread):
+    def __init__(self, getter):
+        HTTPServer.__init__(self, ('', int(PORT)), FileServiceRequestHandler)
+        Thread.__init__(self)
+        self.event = getter.event
     
     def run(self):
         self.serve_forever()
         
 class FileServiceRequestHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        print self.path
+        self.event.wait()
         SimpleHTTPRequestHandler.do_GET(self)
-        #self.send_response(301)
-        #self.send_header('Location','http://172.16.101.207:8765/n02100735.tar.0')
-        #self.end_headers()
-
+        
     
-if __name__ == "__main__":
-    FileService(8765)

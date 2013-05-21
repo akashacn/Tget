@@ -15,15 +15,20 @@ import os
 import utils
 from utils import *
 import re
+from threading import Event
+import thread
+from FileService import *
 
 HEADER_TIMEOUT = 30
 
 class GetService:
-    def __init__(self, url, num_blocks = 4, given_outfile = None):
+    def __init__(self, url, given_outfile = None):
+        self.num_blocks = 1
         self.filepool = []
-        self.num_blocks = num_blocks
         self.given_outfile = given_outfile
         self.url = url
+        self.event = Event()
+        self.event.clear()
         self.filename = self.get_filename()
     
     @staticmethod
@@ -34,6 +39,7 @@ class GetService:
         if hasattr(self, 'filesize') and self.filesize != None:
             return self.filesize
         
+        pycurl.global_init(pycurl.GLOBAL_ALL) # GLOBAL_ALL must be set in normal
         curl = pycurl.Curl()
         curl.setopt(pycurl.HEADER, True)
         curl.setopt(pycurl.NOBODY, True)
@@ -47,6 +53,8 @@ class GetService:
             size = int(re.findall("Content-Length: (\d+)", b.getvalue())[0])
         except:
             size = -1
+        
+        pycurl.global_cleanup()
         
         self.filesize = size
         return size
@@ -69,7 +77,7 @@ class GetService:
         self.filename = filename
         return filename
         
-    def tryoutfile(self, filename, overwrite = True, append_mod = False):
+    def try_outfile(self, filename, overwrite = True, append_mod = False):
         rightpos = filename.rfind('?')
         if rightpos != -1:
             filename = filename[ : rightpos]
@@ -94,7 +102,7 @@ class GetService:
             curl.range = (start, end)
             print start, end
             curl.filename = self.get_filename()
-            f = self.tryoutfile("%s$%d$%d" % (self.get_filename(), start, end), append_mod = True)
+            f = self.try_outfile("%s$%d$%d" % (self.get_filename(), start, end), append_mod = True)
             if isinstance(f, tuple):
                 start += f[1]
                 curl.setopt(pycurl.RANGE, str(start)+ "-" + str(end-1))
@@ -143,7 +151,7 @@ class GetService:
         
         if filesize == -1: # length not known, use single connection instead
             c = self.gen_curl()
-            outfile = self.tryoutfile(self.filename)
+            outfile = self.try_soutfile(self.filename)
             c.setopt(pycurl.WRITEFUNCTION, outfile.write)
             c.perform()
             outfile.close()
@@ -173,6 +181,7 @@ class GetService:
                         if ret != pycurl.E_CALL_MULTI_PERFORM:
                             break
                 self.end_perform(normal = True)
+                self.event.set()
             except KeyboardInterrupt:
                 self.end_perform(normal = False)
             except SystemExit:
@@ -181,7 +190,11 @@ class GetService:
         pycurl.global_cleanup()
 
 if __name__ == "__main__":
-    tget_client = GetService(url = 'http://172.16.101.207:8765/cuda-lesson/Unit_1_-_The_GPU_Programming_Model.zip')
+    tget_client = GetService(url = 'http://172.16.101.1:8000/Lesson_1_-_Bill_Dally_Interview-subtitles.en.zip')
+    tget_fileservice = FileService(tget_client)
+    tget_fileservice.start()
     tget_client.perform()
+    tget_fileservice.join()
+    
 
         
